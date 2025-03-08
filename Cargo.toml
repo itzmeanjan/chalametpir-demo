@@ -1,0 +1,15 @@
+[package]
+name = "pir-of-ens"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { version = "=1.44.0", features = ["full"] }
+
+[[bin]]
+name = "server"
+path = "src/server.rs"
+
+[[bin]]
+name = "client"
+path = "src/client.rs"
