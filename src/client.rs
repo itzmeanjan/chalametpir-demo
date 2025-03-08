@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use tokio::io::{self, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 
@@ -33,13 +35,14 @@ async fn main() {
                     break;
                 }
 
-                // Write the input to the server.
-                if let Err(e) = stream.write_all(input.as_bytes()).await {
+                // Write the trimmed input to the server.
+                if let Err(e) = stream.write_all(trimmed.as_bytes()).await {
                     eprintln!("Failed to write to stream: {}", e);
                     break;
                 }
 
                 // Read the response from the server.
+                let start_tm = Instant::now();
                 let mut buffer = vec![0; 512];
                 match stream.read(&mut buffer).await {
                     Ok(0) => {
@@ -48,7 +51,7 @@ async fn main() {
                     }
                     Ok(n) => {
                         let response = String::from_utf8_lossy(&buffer[..n]);
-                        println!("Received echo: {}", response);
+                        println!("Received echo: {}, in {:?}", response, start_tm.elapsed());
                     }
                     Err(e) => {
                         eprintln!("Failed to read from stream: {}", e);

@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -17,9 +19,13 @@ async fn handle_client(mut stream: TcpStream) {
                 // Echo the message back to the client
                 let received = String::from_utf8_lossy(&buf[..n]);
                 println!("Received: {}", received);
+
+                let start_tm = Instant::now();
                 if let Err(e) = stream.write_all(&buf[..n]).await {
                     eprintln!("Failed to write to client: {}", e);
                     break;
+                } else {
+                    println!("Responded in {:?}", start_tm.elapsed());
                 }
             }
             Err(e) => {
