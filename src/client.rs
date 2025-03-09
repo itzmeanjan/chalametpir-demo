@@ -1,3 +1,4 @@
+use chalamet_pir::client::Client;
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
 use tokio::io::{self, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
@@ -23,6 +24,8 @@ async fn main() {
     let stdin = io::stdin();
     let mut reader = BufReader::new(stdin);
     let mut input = String::new();
+
+    let mut client;
 
     loop {
         input.clear();
@@ -82,6 +85,16 @@ async fn main() {
 
                 let client_setup_params: ClientSetupParams =
                     serde_json::from_slice(&buffer).unwrap();
+
+                client = Client::setup(
+                    &client_setup_params.seed,
+                    &client_setup_params.hint,
+                    &client_setup_params.filter,
+                )
+                .unwrap_or_else(|e| {
+                    eprintln!("Client setup failed: {}", e);
+                    std::process::exit(1);
+                });
             }
             Err(e) => {
                 eprintln!("Failed to read from stdin: {}", e);
