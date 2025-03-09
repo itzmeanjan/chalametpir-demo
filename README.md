@@ -1,2 +1,2 @@
-# pir-of-ens
-Private Information Retrieval over Ethereum Name Service Database
+# chalametpir-demo
+Demostration of using ChalametPIR - Keyword Private Information Retrieval
