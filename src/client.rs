@@ -14,9 +14,7 @@ struct ClientSetupParams {
 #[tokio::main]
 async fn main() {
     // Connect to the server.
-    let mut stream = TcpStream::connect("127.0.0.1:7878")
-        .await
-        .expect("Unable to connect to server");
+    let mut stream = TcpStream::connect("127.0.0.1:7878").await.expect("Unable to connect to server");
 
     println!("Connected to server at 127.0.0.1:7878");
 
@@ -53,22 +51,13 @@ async fn main() {
         }
     }
 
-    println!(
-        "Received PIR client setup parameters of {}B, in {:?}",
-        bytes_read,
-        start_tm.elapsed()
-    );
+    println!("Received PIR client setup parameters of {}B, in {:?}", bytes_read, start_tm.elapsed());
 
     println!("Setting up PIR client");
     let start_tm = Instant::now();
     let client_setup_params: ClientSetupParams = serde_json::from_slice(&buffer).unwrap();
 
-    let mut client = Client::setup(
-        &client_setup_params.seed,
-        &client_setup_params.hint,
-        &client_setup_params.filter,
-    )
-    .unwrap_or_else(|e| {
+    let mut client = Client::setup(&client_setup_params.seed, &client_setup_params.hint, &client_setup_params.filter).unwrap_or_else(|e| {
         eprintln!("PIR client setup failed: {}", e);
         std::process::exit(1);
     });
@@ -125,8 +114,7 @@ async fn main() {
                                     continue;
                                 }
 
-                                let buffer_len =
-                                    u64::from_le_bytes(len_bytes.try_into().unwrap()) as usize;
+                                let buffer_len = u64::from_le_bytes(len_bytes.try_into().unwrap()) as usize;
                                 let mut buffer = vec![0; buffer_len];
                                 let mut bytes_read = 0;
 
@@ -144,11 +132,7 @@ async fn main() {
                                     }
                                 }
 
-                                println!(
-                                    "Received PIR response of {}B, in {:?}",
-                                    bytes_read,
-                                    start_tm.elapsed()
-                                );
+                                println!("Received PIR response of {}B, in {:?}", bytes_read, start_tm.elapsed());
 
                                 println!("Processing PIR response...");
                                 let start_tm = Instant::now();
@@ -156,12 +140,7 @@ async fn main() {
                                 match client.process_response(query_key_as_bytes, &buffer) {
                                     Ok(response) => {
                                         let response_str = String::from_utf8_lossy(&response);
-                                        println!(
-                                            "Decoded PIR response for query '{}': {}, in {:?}",
-                                            query_key,
-                                            response_str,
-                                            start_tm.elapsed()
-                                        );
+                                        println!("Decoded PIR response for query '{}': {}, in {:?}", query_key, response_str, start_tm.elapsed());
                                     }
                                     Err(e) => {
                                         eprintln!("Failed to process PIR response: {}", e);
@@ -169,10 +148,7 @@ async fn main() {
                                     }
                                 }
 
-                                println!(
-                                    "Completing query took total time of {:?}",
-                                    query_begins_at.elapsed()
-                                );
+                                println!("Completing query took total time of {:?}", query_begins_at.elapsed());
                             }
                             Err(e) => {
                                 eprintln!("Failed to prepare query: {}", e);

@@ -36,56 +36,32 @@ async fn handle_client(mut stream: TcpStream, setup_params: ClientSetupParams, s
                         if received.to_ascii_lowercase() == "setup" {
                             let setup_params_bytes = serde_json::to_vec(&setup_params).unwrap();
 
-                            stream
-                                .write_u64_le(setup_params_bytes.len() as u64)
-                                .await
-                                .unwrap_or_else(|e| {
-                                    eprintln!(
-                                        "Failed to send setup parameters metadata to PIR client: {}",
-                                        e
-                                    );
-                                });
+                            stream.write_u64_le(setup_params_bytes.len() as u64).await.unwrap_or_else(|e| {
+                                eprintln!("Failed to send setup parameters metadata to PIR client: {}", e);
+                            });
 
-                            stream
-                                .write_all(&setup_params_bytes)
-                                .await
-                                .unwrap_or_else(|e| {
-                                    eprintln!(
-                                        "Failed to send setup parameters to PIR client: {}",
-                                        e
-                                    );
-                                });
+                            stream.write_all(&setup_params_bytes).await.unwrap_or_else(|e| {
+                                eprintln!("Failed to send setup parameters to PIR client: {}", e);
+                            });
                         } else {
-                            stream
-                                .write_all(b"unknown request")
-                                .await
-                                .unwrap_or_else(|e| {
-                                    eprintln!("Failed to inform client: {}", e);
-                                });
+                            stream.write_all(b"unknown request").await.unwrap_or_else(|e| {
+                                eprintln!("Failed to inform client: {}", e);
+                            });
                         }
                     }
                     _ => {
                         let start_tm = Instant::now();
                         if let Ok(response) = server.respond(&buf[..n]) {
-                            stream
-                                .write_u64_le(response.len() as u64)
-                                .await
-                                .unwrap_or_else(|e| {
-                                    eprintln!(
-                                        "Failed to send response metadata to PIR client: {}",
-                                        e
-                                    );
-                                });
+                            stream.write_u64_le(response.len() as u64).await.unwrap_or_else(|e| {
+                                eprintln!("Failed to send response metadata to PIR client: {}", e);
+                            });
                             stream.write_all(&response).await.unwrap_or_else(|e| {
                                 eprintln!("Failed to send response to client: {}", e);
                             });
                         } else {
-                            stream
-                                .write_all(b"failed to run PIR query")
-                                .await
-                                .unwrap_or_else(|e| {
-                                    eprintln!("Failed to inform client: {}", e);
-                                });
+                            stream.write_all(b"failed to run PIR query").await.unwrap_or_else(|e| {
+                                eprintln!("Failed to inform client: {}", e);
+                            });
                         }
                         println!("Responded in {:?}", start_tm.elapsed());
                     }
@@ -126,10 +102,7 @@ async fn main() {
         .into_iter()
         .map(|(k, v)| (k.as_bytes().to_vec(), v.to_string().as_bytes().to_vec()))
         .collect();
-    let kv_map_ref = kv_map
-        .iter()
-        .map(|(k, v)| (k.as_slice(), v.as_slice()))
-        .collect();
+    let kv_map_ref = kv_map.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect();
 
     println!("Done in {:?}", start_tm.elapsed());
 
@@ -140,18 +113,15 @@ async fn main() {
     println!("Setting up ChalametPIR server");
 
     let start_tm = Instant::now();
-    let (server, hint_bytes, filter_param_bytes) = Server::setup::<3>(&seed_μ, kv_map_ref)
-        .unwrap_or_else(|e| {
-            eprintln!("Server setup failed: {}", e);
-            std::process::exit(1);
-        });
+    let (server, hint_bytes, filter_param_bytes) = Server::setup::<3>(&seed_μ, kv_map_ref).unwrap_or_else(|e| {
+        eprintln!("Server setup failed: {}", e);
+        std::process::exit(1);
+    });
 
     println!("Done in {:?}", start_tm.elapsed());
 
     // Bind the TCP listener to an address.
-    let listener = TcpListener::bind("127.0.0.1:7878")
-        .await
-        .expect("Failed to bind");
+    let listener = TcpListener::bind("127.0.0.1:7878").await.expect("Failed to bind");
 
     println!("Server listening on 127.0.0.1:7878");
 
