@@ -1,7 +1,14 @@
+use serde::{Deserialize, Serialize};
 use std::time::Instant;
-
 use tokio::io::{self, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+struct ClientSetupParams {
+    seed: [u8; chalamet_pir::SEED_BYTE_LEN],
+    hint: Vec<u8>,
+    filter: Vec<u8>,
+}
 
 #[tokio::main]
 async fn main() {
@@ -43,21 +50,38 @@ async fn main() {
 
                 // Read the response from the server.
                 let start_tm = Instant::now();
-                let mut buffer = vec![0; 512];
-                match stream.read(&mut buffer).await {
-                    Ok(0) => {
-                        println!("Server closed the connection.");
-                        break;
-                    }
-                    Ok(n) => {
-                        let response = String::from_utf8_lossy(&buffer[..n]);
-                        println!("Received echo: {}, in {:?}", response, start_tm.elapsed());
-                    }
+
+                let mut len_bytes = [0u8; std::mem::size_of::<u64>()];
+                match stream.read_exact(&mut len_bytes).await {
+                    Ok(_) => {}
                     Err(e) => {
-                        eprintln!("Failed to read from stream: {}", e);
+                        eprintln!("Failed to read length from stream: {}", e);
                         break;
                     }
                 }
+
+                let buffer_len = u64::from_le_bytes(len_bytes.try_into().unwrap()) as usize;
+                let mut buffer = vec![0; buffer_len];
+                let mut bytes_read = 0;
+
+                loop {
+                    match stream.read(&mut buffer[bytes_read..]).await {
+                        Ok(0) => break,
+                        Ok(n) => bytes_read += n,
+                        Err(e) => {
+                            eprintln!("Failed to read from stream: {}", e);
+                            break;
+                        }
+                    }
+                    if bytes_read > 0 && bytes_read >= buffer.len() {
+                        break;
+                    }
+                }
+
+                println!("Read : {}B, in {:?}", bytes_read, start_tm.elapsed());
+
+                let client_setup_params: ClientSetupParams =
+                    serde_json::from_slice(&buffer).unwrap();
             }
             Err(e) => {
                 eprintln!("Failed to read from stdin: {}", e);
