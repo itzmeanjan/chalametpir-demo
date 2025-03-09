@@ -19,7 +19,7 @@ struct ClientSetupParams {
 }
 
 /// Handles an individual client connection.
-async fn handle_client(mut stream: TcpStream, setup_params: ClientSetupParams) {
+async fn handle_client(mut stream: TcpStream, setup_params: ClientSetupParams, server: Server) {
     println!("New connection from: {}", stream.peer_addr().unwrap());
     let mut buf = vec![0u8; 1024 * 1024];
 
@@ -35,7 +35,6 @@ async fn handle_client(mut stream: TcpStream, setup_params: ClientSetupParams) {
                         let received = String::from_utf8_lossy(&buf[..n]);
                         if received.to_ascii_lowercase() == "setup" {
                             let setup_params_bytes = serde_json::to_vec(&setup_params).unwrap();
-                            println!("total = {}", setup_params_bytes.len());
 
                             stream
                                 .write_u64_le(setup_params_bytes.len() as u64)
@@ -67,12 +66,28 @@ async fn handle_client(mut stream: TcpStream, setup_params: ClientSetupParams) {
                     }
                     _ => {
                         let start_tm = Instant::now();
-                        if let Err(e) = stream.write_all(&buf[..n]).await {
-                            eprintln!("Failed to write to client: {}", e);
-                            break;
+                        if let Ok(response) = server.respond(&buf[..n]) {
+                            stream
+                                .write_u64_le(response.len() as u64)
+                                .await
+                                .unwrap_or_else(|e| {
+                                    eprintln!(
+                                        "Failed to send response metadata to PIR client: {}",
+                                        e
+                                    );
+                                });
+                            stream.write_all(&response).await.unwrap_or_else(|e| {
+                                eprintln!("Failed to send response to client: {}", e);
+                            });
                         } else {
-                            println!("Responded in {:?}", start_tm.elapsed());
+                            stream
+                                .write_all(b"failed to run PIR query")
+                                .await
+                                .unwrap_or_else(|e| {
+                                    eprintln!("Failed to inform client: {}", e);
+                                });
                         }
+                        println!("Responded in {:?}", start_tm.elapsed());
                     }
                 };
             }
@@ -151,9 +166,10 @@ async fn main() {
         match listener.accept().await {
             Ok((stream, _addr)) => {
                 let movable_client_setup_params = client_setup_params.clone();
+                let movable_server_handle = server.clone();
 
                 tokio::spawn(async move {
-                    handle_client(stream, movable_client_setup_params).await;
+                    handle_client(stream, movable_client_setup_params, movable_server_handle).await;
                 });
             }
             Err(e) => {
