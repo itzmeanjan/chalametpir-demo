@@ -2,6 +2,13 @@
 name = "chalametpir-demo"
 version = "0.1.0"
 edition = "2024"
+resolver = "2"
+rust-version = "1.85.0"
+authors = ["Anjan Roy <hello@itzmeanjan.in>"]
+description = "Demostration of using ChalametPIR - Keyword Private Information Retrieval"
+readme = "README.md"
+repository = "https://github.com/itzmeanjan/chalametpir-demo.git"
+license = "MPL-2.0"
 
 [dependencies]
 tokio = { version = "=1.44.0", features = ["full"] }
@@ -18,3 +25,9 @@ path = "src/server.rs"
 [[bin]]
 name = "client"
 path = "src/client.rs"
+
+[profile.optimized]
+inherits = "release"
+codegen-units = 1
+lto = "thin"
+panic = "abort"
