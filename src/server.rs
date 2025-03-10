@@ -20,13 +20,14 @@ struct ClientSetupParams {
 
 /// Handles an individual client connection.
 async fn handle_client(mut stream: TcpStream, setup_params: ClientSetupParams, server: Server) {
-    println!("New connection from: {}", stream.peer_addr().unwrap());
+    let remote_addr = stream.peer_addr().unwrap();
+    println!("🎉 New connection from: {}", remote_addr);
     let mut buf = vec![0u8; 1024 * 1024];
 
     loop {
         match stream.read(&mut buf).await {
             Ok(0) => {
-                println!("Connection closed");
+                println!("❌ Connection closed {}", remote_addr);
                 break;
             }
             Ok(n) => {
@@ -34,41 +35,44 @@ async fn handle_client(mut stream: TcpStream, setup_params: ClientSetupParams, s
                     5 => {
                         let received = String::from_utf8_lossy(&buf[..n]);
                         if received.to_ascii_lowercase() == "setup" {
+                            let start_tm = Instant::now();
                             let setup_params_bytes = serde_json::to_vec(&setup_params).unwrap();
 
                             stream.write_u64_le(setup_params_bytes.len() as u64).await.unwrap_or_else(|e| {
-                                eprintln!("Failed to send setup parameters metadata to PIR client: {}", e);
+                                eprintln!("❌ Failed to send setup parameters metadata to PIR client: {}", e);
+                            });
+                            stream.write_all(&setup_params_bytes).await.unwrap_or_else(|e| {
+                                eprintln!("❌ Failed to send setup parameters to PIR client: {}", e);
                             });
 
-                            stream.write_all(&setup_params_bytes).await.unwrap_or_else(|e| {
-                                eprintln!("Failed to send setup parameters to PIR client: {}", e);
-                            });
+                            println!("✅ Responded to PIR client setup parameters request in {:?}", start_tm.elapsed());
                         } else {
-                            stream.write_all(b"unknown request").await.unwrap_or_else(|e| {
-                                eprintln!("Failed to inform client: {}", e);
+                            stream.write_all(b"unsupported request").await.unwrap_or_else(|e| {
+                                eprintln!("❌ Failed to inform client: {}", e);
                             });
+                            println!("✅ Responded to unsupported request");
                         }
                     }
                     _ => {
                         let start_tm = Instant::now();
                         if let Ok(response) = server.respond(&buf[..n]) {
                             stream.write_u64_le(response.len() as u64).await.unwrap_or_else(|e| {
-                                eprintln!("Failed to send response metadata to PIR client: {}", e);
+                                eprintln!("❌ Failed to send response metadata to PIR client: {}", e);
                             });
                             stream.write_all(&response).await.unwrap_or_else(|e| {
-                                eprintln!("Failed to send response to client: {}", e);
+                                eprintln!("❌ Failed to send response to client: {}", e);
                             });
                         } else {
                             stream.write_all(b"failed to run PIR query").await.unwrap_or_else(|e| {
-                                eprintln!("Failed to inform client: {}", e);
+                                eprintln!("❌ Failed to inform client: {}", e);
                             });
                         }
-                        println!("Responded in {:?}", start_tm.elapsed());
+                        println!("✅ Responded to PIR query in {:?}", start_tm.elapsed());
                     }
                 };
             }
             Err(e) => {
-                eprintln!("Failed to read from client: {}", e);
+                eprintln!("❌ Failed to read from client: {}", e);
                 break;
             }
         }
@@ -79,23 +83,23 @@ async fn handle_client(mut stream: TcpStream, setup_params: ClientSetupParams, s
 async fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
-        eprintln!("Usage: {} <path_to_json_file>", args[0]);
+        eprintln!("🔆 Usage: {} <path_to_key_value_db_file.json>", args[0]);
         std::process::exit(1);
     }
     let file_path = &args[1];
 
     let file = File::open(file_path).unwrap_or_else(|err| {
-        eprintln!("Error opening file {}: {}", file_path, err);
+        eprintln!("❌ Error opening JSON database file {}: {}", file_path, err);
         std::process::exit(1);
     });
     let reader = BufReader::new(file);
 
     let deserialized: Map<String, Value> = serde_json::from_reader(reader).unwrap_or_else(|err| {
-        eprintln!("Error parsing JSON: {}", err);
+        eprintln!("❌ Error parsing JSON database file: {}", err);
         std::process::exit(1);
     });
 
-    println!("Parsing JSON file");
+    println!("⏳ Parsing JSON database file");
 
     let start_tm = Instant::now();
     let kv_map: HashMap<Vec<u8>, Vec<u8>> = deserialized
@@ -104,26 +108,26 @@ async fn main() {
         .collect();
     let kv_map_ref = kv_map.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect();
 
-    println!("Done in {:?}", start_tm.elapsed());
+    println!("✅ Done in {:?}", start_tm.elapsed());
 
     let mut rng = ChaCha8Rng::from_os_rng();
     let mut seed_μ = [0u8; chalamet_pir::SEED_BYTE_LEN]; // You'll want to generate a cryptographically secure random seed
     rng.fill_bytes(&mut seed_μ);
 
-    println!("Setting up ChalametPIR server");
+    println!("⏳ Setting up ChalametPIR server");
 
     let start_tm = Instant::now();
     let (server, hint_bytes, filter_param_bytes) = Server::setup::<3>(&seed_μ, kv_map_ref).unwrap_or_else(|e| {
-        eprintln!("Server setup failed: {}", e);
+        eprintln!("❌ Server setup failed: {}", e);
         std::process::exit(1);
     });
 
-    println!("Done in {:?}", start_tm.elapsed());
+    println!("✅ Done in {:?}", start_tm.elapsed());
 
     // Bind the TCP listener to an address.
-    let listener = TcpListener::bind("127.0.0.1:7878").await.expect("Failed to bind");
+    let listener = TcpListener::bind("127.0.0.1:7878").await.expect("❌ Failed to setup server");
 
-    println!("Server listening on 127.0.0.1:7878");
+    println!("👂 Server listening on 127.0.0.1:7878");
 
     let client_setup_params = ClientSetupParams {
         seed: seed_μ,
@@ -143,7 +147,7 @@ async fn main() {
                 });
             }
             Err(e) => {
-                eprintln!("Failed to accept connection: {}", e);
+                eprintln!("❌ Failed to accept connection: {}", e);
             }
         }
     }
