@@ -7,11 +7,12 @@ use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io::BufReader;
+use std::sync::Arc;
 use std::time::Instant;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 struct ClientSetupParams {
     seed: [u8; chalamet_pir::SEED_BYTE_LEN],
     hint: Vec<u8>,
@@ -19,7 +20,7 @@ struct ClientSetupParams {
 }
 
 /// Handles an individual client connection.
-async fn handle_client(mut stream: TcpStream, setup_params: ClientSetupParams, server: Server) {
+async fn handle_client(mut stream: TcpStream, setup_params: Arc<ClientSetupParams>, server: Arc<Server>) {
     let remote_addr = stream.peer_addr().unwrap();
     println!("🎉 New connection from: {}", remote_addr);
     let mut buf = vec![0u8; 1024 * 1024];
@@ -36,7 +37,7 @@ async fn handle_client(mut stream: TcpStream, setup_params: ClientSetupParams, s
                         let received = String::from_utf8_lossy(&buf[..n]);
                         if received.to_ascii_lowercase() == "setup" {
                             let start_tm = Instant::now();
-                            let setup_params_bytes = serde_json::to_vec(&setup_params).unwrap();
+                            let setup_params_bytes = serde_json::to_vec(setup_params.as_ref()).unwrap();
 
                             stream.write_u64_le(setup_params_bytes.len() as u64).await.unwrap_or_else(|e| {
                                 eprintln!("❌ Failed to send setup parameters metadata to PIR client: {}", e);
@@ -134,16 +135,18 @@ async fn main() {
         hint: hint_bytes,
         filter: filter_param_bytes,
     };
+    let clonable_client_setup_params = Arc::new(client_setup_params);
+    let clonable_server = Arc::new(server);
 
     // Accept incoming connections in an infinite loop.
     loop {
         match listener.accept().await {
             Ok((stream, _addr)) => {
-                let movable_client_setup_params = client_setup_params.clone();
-                let movable_server_handle = server.clone();
+                let local_client_setup_params = clonable_client_setup_params.clone();
+                let local_server_handle = clonable_server.clone();
 
                 tokio::spawn(async move {
-                    handle_client(stream, movable_client_setup_params, movable_server_handle).await;
+                    handle_client(stream, local_client_setup_params, local_server_handle).await;
                 });
             }
             Err(e) => {
