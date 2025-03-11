@@ -5,7 +5,7 @@ use std::time::Instant;
 use tokio::io::{self, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 struct ClientSetupParams {
     seed: [u8; chalamet_pir::SEED_BYTE_LEN],
     hint: Vec<u8>,
@@ -72,7 +72,7 @@ async fn main() {
 
     loop {
         input.clear();
-        println!("✍️ Type a message and press Enter (or type 'quit' to exit):");
+        println!("✍️ Type a query keyword and press Enter (or type 'quit' to exit):");
 
         match reader.read_line(&mut input).await {
             Ok(0) => {
