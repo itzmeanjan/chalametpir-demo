@@ -24,7 +24,7 @@ async fn main() {
     }
     let file_path = &args[1];
 
-    let kv_map = get_kv_db_from_json_file(&file_path);
+    let kv_map = get_kv_db_from_json_file(file_path);
     let kv_map_ref = kv_map.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect();
 
     let mut rng = ChaCha8Rng::from_os_rng();
@@ -114,7 +114,7 @@ async fn handle_client(mut stream: TcpStream, setup_params: Arc<common::ClientSe
                         let msg = common::read_message(&mut stream, n).await?;
                         let msg_as_str = String::from_utf8_lossy(&msg);
 
-                        if msg_as_str.to_ascii_lowercase() == "setup" {
+                        if msg_as_str.to_lowercase() == "setup" {
                             handle_client_setup_request(&mut stream, setup_params.clone()).await;
                         } else {
                             handle_unrecognized_client_request(&mut stream).await;
