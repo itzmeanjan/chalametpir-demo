@@ -44,6 +44,44 @@ async fn read_message(stream: &mut TcpStream, msg_byte_len: usize) -> Vec<u8> {
     msg_bytes
 }
 
+async fn handle_client_setup_request(stream: &mut TcpStream, setup_params: Arc<ClientSetupParams>) {
+    let start_tm = Instant::now();
+    let setup_params_bytes = serde_json::to_vec(setup_params.as_ref()).unwrap();
+
+    stream.write_u64_le(setup_params_bytes.len() as u64).await.unwrap_or_else(|e| {
+        eprintln!("❌ Failed to send client setup parameters metadata to PIR client: {}", e);
+    });
+    stream.write_all(&setup_params_bytes).await.unwrap_or_else(|e| {
+        eprintln!("❌ Failed to send client setup parameters to PIR client: {}", e);
+    });
+
+    println!("✅ Responded to PIR client setup parameters request in {:?}", start_tm.elapsed());
+}
+
+async fn handle_unrecognized_client_request(stream: &mut TcpStream) {
+    stream.write_all(b"unrecognized request").await.unwrap_or_else(|e| {
+        eprintln!("❌ Failed to inform client: {}", e);
+    });
+    println!("✅ Responded to unrecognized request");
+}
+
+async fn handle_client_pir_query(stream: &mut TcpStream, server: Arc<Server>, query: &[u8]) {
+    let start_tm = Instant::now();
+    if let Ok(response) = server.respond(query) {
+        stream.write_u64_le(response.len() as u64).await.unwrap_or_else(|e| {
+            eprintln!("❌ Failed to send response metadata to PIR client: {}", e);
+        });
+        stream.write_all(&response).await.unwrap_or_else(|e| {
+            eprintln!("❌ Failed to send response to client: {}", e);
+        });
+    } else {
+        stream.write_all(b"failed to run PIR query").await.unwrap_or_else(|e| {
+            eprintln!("❌ Failed to inform client: {}", e);
+        });
+    }
+    println!("✅ Responded to PIR query in {:?}", start_tm.elapsed());
+}
+
 /// Handles an individual client connection.
 async fn handle_client(mut stream: TcpStream, setup_params: Arc<ClientSetupParams>, server: Arc<Server>) {
     let remote_addr = stream.peer_addr().unwrap();
@@ -63,41 +101,14 @@ async fn handle_client(mut stream: TcpStream, setup_params: Arc<ClientSetupParam
                         let msg_as_str = String::from_utf8_lossy(&msg);
 
                         if msg_as_str.to_ascii_lowercase() == "setup" {
-                            let start_tm = Instant::now();
-                            let setup_params_bytes = serde_json::to_vec(setup_params.as_ref()).unwrap();
-
-                            stream.write_u64_le(setup_params_bytes.len() as u64).await.unwrap_or_else(|e| {
-                                eprintln!("❌ Failed to send setup parameters metadata to PIR client: {}", e);
-                            });
-                            stream.write_all(&setup_params_bytes).await.unwrap_or_else(|e| {
-                                eprintln!("❌ Failed to send setup parameters to PIR client: {}", e);
-                            });
-
-                            println!("✅ Responded to PIR client setup parameters request in {:?}", start_tm.elapsed());
+                            handle_client_setup_request(&mut stream, setup_params.clone()).await;
                         } else {
-                            stream.write_all(b"unsupported request").await.unwrap_or_else(|e| {
-                                eprintln!("❌ Failed to inform client: {}", e);
-                            });
-                            println!("✅ Responded to unsupported request");
+                            handle_unrecognized_client_request(&mut stream).await;
                         }
                     }
                     _ => {
                         let msg = read_message(&mut stream, n).await;
-
-                        let start_tm = Instant::now();
-                        if let Ok(response) = server.respond(&msg) {
-                            stream.write_u64_le(response.len() as u64).await.unwrap_or_else(|e| {
-                                eprintln!("❌ Failed to send response metadata to PIR client: {}", e);
-                            });
-                            stream.write_all(&response).await.unwrap_or_else(|e| {
-                                eprintln!("❌ Failed to send response to client: {}", e);
-                            });
-                        } else {
-                            stream.write_all(b"failed to run PIR query").await.unwrap_or_else(|e| {
-                                eprintln!("❌ Failed to inform client: {}", e);
-                            });
-                        }
-                        println!("✅ Responded to PIR query in {:?}", start_tm.elapsed());
+                        handle_client_pir_query(&mut stream, server.clone(), &msg).await;
                     }
                 };
             }
