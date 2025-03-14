@@ -20,7 +20,7 @@ struct ClientSetupParams {
 }
 
 async fn read_message_byte_length(stream: &mut TcpStream) -> Option<usize> {
-    stream.read_u64().await.ok().map(|v| v as usize)
+    stream.read_u64_le().await.ok().map(|v| v as usize)
 }
 
 async fn read_message(stream: &mut TcpStream, msg_byte_len: usize) -> Vec<u8> {
