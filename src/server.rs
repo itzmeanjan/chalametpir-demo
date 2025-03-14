@@ -80,15 +80,7 @@ async fn handle_client(mut stream: TcpStream, setup_params: Arc<ClientSetupParam
     }
 }
 
-#[tokio::main]
-async fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        eprintln!("🔆 Usage: {} <path_to_key_value_db_file.json>", args[0]);
-        std::process::exit(1);
-    }
-    let file_path = &args[1];
-
+fn get_kv_db_from_json_file(file_path: &str) -> HashMap<Vec<u8>, Vec<u8>> {
     let file = File::open(file_path).unwrap_or_else(|err| {
         eprintln!("❌ Error opening JSON database file {}: {}", file_path, err);
         std::process::exit(1);
@@ -107,9 +99,22 @@ async fn main() {
         .into_iter()
         .map(|(k, v)| (k.as_bytes().to_vec(), v.to_string().as_bytes().to_vec()))
         .collect();
-    let kv_map_ref = kv_map.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect();
 
     println!("✅ Done in {:?}", start_tm.elapsed());
+    kv_map
+}
+
+#[tokio::main]
+async fn main() {
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        eprintln!("🔆 Usage: {} <path_to_key_value_db_file.json>", args[0]);
+        std::process::exit(1);
+    }
+    let file_path = &args[1];
+
+    let kv_map = get_kv_db_from_json_file(&file_path);
+    let kv_map_ref = kv_map.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect();
 
     let mut rng = ChaCha8Rng::from_os_rng();
     let mut seed_μ = [0u8; chalamet_pir::SEED_BYTE_LEN]; // You'll want to generate a cryptographically secure random seed
