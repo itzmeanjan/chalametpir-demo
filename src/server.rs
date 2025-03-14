@@ -19,23 +19,50 @@ struct ClientSetupParams {
     filter: Vec<u8>,
 }
 
+async fn read_message_byte_length(stream: &mut TcpStream) -> Option<usize> {
+    stream.read_u64().await.ok().map(|v| v as usize)
+}
+
+async fn read_message(stream: &mut TcpStream, msg_byte_len: usize) -> Vec<u8> {
+    let mut msg_bytes = vec![0u8; msg_byte_len];
+    let mut bytes_read = 0;
+
+    loop {
+        match stream.read(&mut msg_bytes[bytes_read..]).await {
+            Ok(0) => break,
+            Ok(n) => bytes_read += n,
+            Err(e) => {
+                eprintln!("❌ Read {}B from client stream, failed to read any further: {}", bytes_read, e);
+                break;
+            }
+        }
+        if bytes_read == msg_byte_len {
+            break;
+        }
+    }
+
+    msg_bytes
+}
+
 /// Handles an individual client connection.
 async fn handle_client(mut stream: TcpStream, setup_params: Arc<ClientSetupParams>, server: Arc<Server>) {
     let remote_addr = stream.peer_addr().unwrap();
     println!("🎉 New connection from: {}", remote_addr);
-    let mut buf = vec![0u8; 1024 * 1024];
 
     loop {
-        match stream.read(&mut buf).await {
-            Ok(0) => {
-                println!("❌ Connection closed {}", remote_addr);
+        let msg_byte_len = read_message_byte_length(&mut stream).await;
+        match msg_byte_len {
+            Some(0) => {
+                println!("❌ Connection closed by {}", remote_addr);
                 break;
             }
-            Ok(n) => {
+            Some(n) => {
                 match n {
                     5 => {
-                        let received = String::from_utf8_lossy(&buf[..n]);
-                        if received.to_ascii_lowercase() == "setup" {
+                        let msg = read_message(&mut stream, n).await;
+                        let msg_as_str = String::from_utf8_lossy(&msg);
+
+                        if msg_as_str.to_ascii_lowercase() == "setup" {
                             let start_tm = Instant::now();
                             let setup_params_bytes = serde_json::to_vec(setup_params.as_ref()).unwrap();
 
@@ -55,8 +82,10 @@ async fn handle_client(mut stream: TcpStream, setup_params: Arc<ClientSetupParam
                         }
                     }
                     _ => {
+                        let msg = read_message(&mut stream, n).await;
+
                         let start_tm = Instant::now();
-                        if let Ok(response) = server.respond(&buf[..n]) {
+                        if let Ok(response) = server.respond(&msg) {
                             stream.write_u64_le(response.len() as u64).await.unwrap_or_else(|e| {
                                 eprintln!("❌ Failed to send response metadata to PIR client: {}", e);
                             });
@@ -72,8 +101,8 @@ async fn handle_client(mut stream: TcpStream, setup_params: Arc<ClientSetupParam
                     }
                 };
             }
-            Err(e) => {
-                eprintln!("❌ Failed to read from client: {}", e);
+            None => {
+                eprintln!("❌ Failed to receive length of message from client");
                 break;
             }
         }
