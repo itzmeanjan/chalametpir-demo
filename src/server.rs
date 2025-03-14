@@ -95,7 +95,7 @@ fn get_kv_db_from_json_file(file_path: &str) -> HashMap<Vec<u8>, Vec<u8>> {
 }
 
 /// Handles an individual client connection.
-async fn handle_client(mut stream: TcpStream, setup_params: Arc<common::ClientSetupParams>, server: Arc<Server>) {
+async fn handle_client(mut stream: TcpStream, setup_params: Arc<common::ClientSetupParams>, server: Arc<Server>) -> Option<()> {
     let remote_addr = stream.peer_addr().unwrap();
     println!("🎉 New connection from: {}", remote_addr);
 
@@ -109,7 +109,7 @@ async fn handle_client(mut stream: TcpStream, setup_params: Arc<common::ClientSe
             Some(n) => {
                 match n {
                     5 => {
-                        let msg = common::read_message(&mut stream, n).await;
+                        let msg = common::read_message(&mut stream, n).await?;
                         let msg_as_str = String::from_utf8_lossy(&msg);
 
                         if msg_as_str.to_ascii_lowercase() == "setup" {
@@ -119,7 +119,7 @@ async fn handle_client(mut stream: TcpStream, setup_params: Arc<common::ClientSe
                         }
                     }
                     _ => {
-                        let msg = common::read_message(&mut stream, n).await;
+                        let msg = common::read_message(&mut stream, n).await?;
                         handle_client_pir_query(&mut stream, server.clone(), &msg).await;
                     }
                 };
@@ -130,6 +130,8 @@ async fn handle_client(mut stream: TcpStream, setup_params: Arc<common::ClientSe
             }
         }
     }
+
+    Some(())
 }
 
 async fn handle_client_setup_request(stream: &mut TcpStream, setup_params: Arc<common::ClientSetupParams>) {

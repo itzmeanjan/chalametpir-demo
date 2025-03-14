@@ -15,9 +15,10 @@ pub async fn read_message_byte_length(stream: &mut TcpStream) -> Option<usize> {
     stream.read_u64_le().await.ok().map(|v| v as usize)
 }
 
-pub async fn read_message(stream: &mut TcpStream, msg_byte_len: usize) -> Vec<u8> {
+pub async fn read_message(stream: &mut TcpStream, msg_byte_len: usize) -> Option<Vec<u8>> {
     let mut msg_bytes = vec![0u8; msg_byte_len];
     let mut bytes_read = 0;
+    let mut encountered_error = false;
 
     loop {
         match stream.read(&mut msg_bytes[bytes_read..]).await {
@@ -25,6 +26,7 @@ pub async fn read_message(stream: &mut TcpStream, msg_byte_len: usize) -> Vec<u8
             Ok(n) => bytes_read += n,
             Err(e) => {
                 eprintln!("❌ Read {}B from client stream, failed to read any further: {}", bytes_read, e);
+                encountered_error = true;
                 break;
             }
         }
@@ -33,5 +35,5 @@ pub async fn read_message(stream: &mut TcpStream, msg_byte_len: usize) -> Vec<u8
         }
     }
 
-    msg_bytes
+    if !encountered_error { Some(msg_bytes) } else { None }
 }
