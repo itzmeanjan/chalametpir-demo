@@ -2,8 +2,6 @@ use serde::{Deserialize, Serialize};
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpStream;
 
-pub const ARITY: u32 = 3; // It can also be 4.
-
 #[derive(Serialize, Deserialize)]
 pub struct ClientSetupParams {
     pub seed: [u8; chalamet_pir::SEED_BYTE_LEN],

@@ -13,6 +13,8 @@ use tokio::net::{TcpListener, TcpStream};
 
 mod common;
 
+const ARITY: u32 = 3; // It can also be 4.
+
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = env::args().collect();
@@ -32,7 +34,7 @@ async fn main() {
     println!("⏳ Setting up ChalametPIR server");
 
     let start_tm = Instant::now();
-    let (server, hint_bytes, filter_param_bytes) = Server::setup::<{ common::ARITY }>(&seed_μ, kv_map_ref).unwrap_or_else(|e| {
+    let (server, hint_bytes, filter_param_bytes) = Server::setup::<ARITY>(&seed_μ, kv_map_ref).unwrap_or_else(|e| {
         eprintln!("❌ Server setup failed: {}", e);
         std::process::exit(1);
     });
