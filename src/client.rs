@@ -53,7 +53,7 @@ async fn handle_pir_query_for_key(stream: &mut TcpStream, pir_client: &mut Clien
     let query_begins_at = Instant::now();
     let query_key_as_bytes = query_key.as_bytes();
 
-    println!("⏳ Preparing PIR query for '{}'...", query_key);
+    println!("⏳ Preparing PIR query for keyword '{}'...", query_key);
     let start_tm = Instant::now();
 
     match pir_client.query(query_key_as_bytes) {

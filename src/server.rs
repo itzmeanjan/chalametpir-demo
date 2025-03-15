@@ -104,10 +104,6 @@ async fn handle_client(mut stream: TcpStream, setup_params: Arc<common::ClientSe
     loop {
         let msg_byte_len = common::read_message_byte_length(&mut stream).await;
         match msg_byte_len {
-            Some(0) => {
-                println!("❌ Connection closed by {}", remote_addr);
-                break;
-            }
             Some(n) => {
                 match n {
                     5 => {
@@ -127,7 +123,7 @@ async fn handle_client(mut stream: TcpStream, setup_params: Arc<common::ClientSe
                 };
             }
             None => {
-                eprintln!("❌ Failed to receive length of message from client");
+                println!("❌ Connection closed by {}", remote_addr);
                 break;
             }
         }
