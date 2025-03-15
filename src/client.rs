@@ -1,5 +1,5 @@
 use chalamet_pir::client::Client;
-use serde_json::{Map, Value};
+use serde_json::Value;
 use std::time::Instant;
 use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
@@ -93,10 +93,15 @@ async fn handle_pir_query_for_key(stream: &mut TcpStream, pir_client: &mut Clien
 
             match pir_client.process_response(query_key_as_bytes, &response) {
                 Ok(response) => {
-                    let json_obj: Map<String, Value> = serde_json::from_slice(&response).unwrap();
+                    let json_obj: Value = serde_json::from_slice(&response).unwrap();
                     let json_str = serde_json::to_string_pretty(&json_obj).unwrap();
 
-                    println!("✅ Decoded PIR response for query \n{}: {}\n, in {:?}", query_key, json_str, start_tm.elapsed());
+                    println!(
+                        "✅ Decoded PIR response for query, in {:?}\n\n{}: {}\n",
+                        start_tm.elapsed(),
+                        query_key,
+                        json_str,
+                    );
                 }
                 Err(e) => {
                     eprintln!("❌ Failed to process PIR response: '{}'", e);
