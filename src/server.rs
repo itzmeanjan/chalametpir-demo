@@ -35,14 +35,17 @@ async fn main() {
 
     let start_tm = Instant::now();
     let (server, hint_bytes, filter_param_bytes) = Server::setup::<ARITY>(&seed_μ, kv_map_ref).unwrap_or_else(|e| {
-        eprintln!("❌ Server setup failed: {}", e);
+        eprintln!("❌ PIR server setup failed: '{}'", e);
         std::process::exit(1);
     });
 
     println!("✅ Done in {:?}", start_tm.elapsed());
 
     // Bind the TCP listener to an address.
-    let listener = TcpListener::bind("127.0.0.1:7878").await.expect("❌ Failed to setup server");
+    let listener = TcpListener::bind("127.0.0.1:7878").await.unwrap_or_else(|e| {
+        eprintln!("❌ Failed to setup server: '{}", e);
+        std::process::exit(1);
+    });
 
     println!("👂 Server listening on 127.0.0.1:7878");
 
@@ -66,7 +69,7 @@ async fn main() {
                 });
             }
             Err(e) => {
-                eprintln!("❌ Failed to accept connection: {}", e);
+                eprintln!("❌ Failed to accept connection: '{}'", e);
             }
         }
     }
@@ -74,13 +77,13 @@ async fn main() {
 
 fn get_kv_db_from_json_file(file_path: &str) -> HashMap<Vec<u8>, Vec<u8>> {
     let file = File::open(file_path).unwrap_or_else(|err| {
-        eprintln!("❌ Error opening JSON database file {}: {}", file_path, err);
+        eprintln!("❌ Error opening JSON database file '{}': '{}'", file_path, err);
         std::process::exit(1);
     });
     let reader = BufReader::new(file);
 
     let deserialized: Map<String, Value> = serde_json::from_reader(reader).unwrap_or_else(|err| {
-        eprintln!("❌ Error parsing JSON database file: {}", err);
+        eprintln!("❌ Error parsing JSON database file: '{}'", err);
         std::process::exit(1);
     });
 
@@ -123,7 +126,7 @@ async fn handle_client(mut stream: TcpStream, setup_params: Arc<common::ClientSe
                 };
             }
             None => {
-                println!("❌ Connection closed by {}", remote_addr);
+                println!("❌ Connection closed by '{}'", remote_addr);
                 break;
             }
         }
@@ -137,10 +140,10 @@ async fn handle_client_setup_request(stream: &mut TcpStream, setup_params: Arc<c
     let setup_params_bytes = serde_json::to_vec(setup_params.as_ref()).unwrap();
 
     stream.write_u64_le(setup_params_bytes.len() as u64).await.unwrap_or_else(|e| {
-        eprintln!("❌ Failed to send client setup parameters metadata to PIR client: {}", e);
+        eprintln!("❌ Failed to send client setup parameters metadata to PIR client: '{}'", e);
     });
     stream.write_all(&setup_params_bytes).await.unwrap_or_else(|e| {
-        eprintln!("❌ Failed to send client setup parameters to PIR client: {}", e);
+        eprintln!("❌ Failed to send client setup parameters to PIR client: '{}'", e);
     });
 
     println!("✅ Responded to PIR client setup parameters request in {:?}", start_tm.elapsed());
@@ -148,7 +151,7 @@ async fn handle_client_setup_request(stream: &mut TcpStream, setup_params: Arc<c
 
 async fn handle_unrecognized_client_request(stream: &mut TcpStream) {
     stream.write_all(b"unrecognized request").await.unwrap_or_else(|e| {
-        eprintln!("❌ Failed to inform client: {}", e);
+        eprintln!("❌ Failed to inform client: '{}'", e);
     });
     println!("✅ Responded to unrecognized request");
 }
@@ -157,14 +160,14 @@ async fn handle_client_pir_query(stream: &mut TcpStream, server: Arc<Server>, qu
     let start_tm = Instant::now();
     if let Ok(response) = server.respond(query) {
         stream.write_u64_le(response.len() as u64).await.unwrap_or_else(|e| {
-            eprintln!("❌ Failed to send response metadata to PIR client: {}", e);
+            eprintln!("❌ Failed to send response metadata to PIR client: '{}'", e);
         });
         stream.write_all(&response).await.unwrap_or_else(|e| {
-            eprintln!("❌ Failed to send response to client: {}", e);
+            eprintln!("❌ Failed to send response to client: '{}'", e);
         });
     } else {
         stream.write_all(b"failed to run PIR query").await.unwrap_or_else(|e| {
-            eprintln!("❌ Failed to inform client: {}", e);
+            eprintln!("❌ Failed to inform client: '{}'", e);
         });
     }
     println!("✅ Responded to PIR query in {:?}", start_tm.elapsed());
