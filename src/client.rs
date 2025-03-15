@@ -12,11 +12,11 @@ async fn request_setup_parameters(stream: &mut TcpStream) {
 
     let setup_msg = b"setup";
     stream.write_u64_le(setup_msg.len() as u64).await.unwrap_or_else(|e| {
-        eprintln!("❌ Failed to send setup request metadata: {}", e);
+        eprintln!("❌ Failed to send setup request metadata: '{}'", e);
         std::process::exit(1);
     });
     stream.write_all(setup_msg).await.unwrap_or_else(|e| {
-        eprintln!("❌ Failed to send setup request: {}", e);
+        eprintln!("❌ Failed to send setup request: '{}'", e);
         std::process::exit(1);
     });
 
@@ -41,7 +41,7 @@ fn setup_pir_client(setup_params_as_bytes: Vec<u8>) -> Client {
     let client_setup_params: common::ClientSetupParams = serde_json::from_slice(&setup_params_as_bytes).unwrap();
 
     let client = Client::setup(&client_setup_params.seed, &client_setup_params.hint, &client_setup_params.filter).unwrap_or_else(|e| {
-        eprintln!("❌ PIR client setup failed: {}", e);
+        eprintln!("❌ PIR client setup failed: '{}'", e);
         std::process::exit(1);
     });
 
@@ -63,20 +63,28 @@ async fn handle_pir_query_for_key(stream: &mut TcpStream, pir_client: &mut Clien
             println!("⤴️ Sending PIR query...");
             let start_tm = Instant::now();
 
-            stream.write_u64_le(query.len() as u64).await.expect("❌ Failed to send PIR query metadata");
-            stream.write_all(&query).await.expect("❌ Failed to send PIR query");
+            stream.write_u64_le(query.len() as u64).await.unwrap_or_else(|e| {
+                eprintln!("❌ Failed to send PIR query metadata: '{}'", e);
+                std::process::exit(1);
+            });
+            stream.write_all(&query).await.unwrap_or_else(|e| {
+                eprintln!("❌ Failed to send PIR query: '{}'", e);
+                std::process::exit(1);
+            });
 
             println!("✅ PIR query sent in {:?}", start_tm.elapsed());
 
             println!("⤵️ Receiving PIR response...");
             let start_tm = Instant::now();
 
-            let response_byte_len = common::read_message_byte_length(stream)
-                .await
-                .expect("❌ Failed to read response length from stream");
-            let response = common::read_message(stream, response_byte_len)
-                .await
-                .expect("❌ Failed to read PIR query response");
+            let response_byte_len = common::read_message_byte_length(stream).await.unwrap_or_else(|| {
+                eprintln!("❌ Failed to read response length from stream");
+                std::process::exit(1);
+            });
+            let response = common::read_message(stream, response_byte_len).await.unwrap_or_else(|| {
+                eprintln!("❌ Failed to read PIR query response");
+                std::process::exit(1);
+            });
 
             println!("✅ Received PIR response in {:?}", start_tm.elapsed());
 
@@ -88,10 +96,10 @@ async fn handle_pir_query_for_key(stream: &mut TcpStream, pir_client: &mut Clien
                     let json_obj: Map<String, Value> = serde_json::from_slice(&response).unwrap();
                     let json_str = serde_json::to_string_pretty(&json_obj).unwrap();
 
-                    println!("✅ Decoded PIR response for query '{}': {}, in {:?}", query_key, json_str, start_tm.elapsed());
+                    println!("✅ Decoded PIR response for query \n{}: {}\n, in {:?}", query_key, json_str, start_tm.elapsed());
                 }
                 Err(e) => {
-                    eprintln!("❌ Failed to process PIR response: {}", e);
+                    eprintln!("❌ Failed to process PIR response: '{}'", e);
                     return;
                 }
             }
@@ -99,14 +107,17 @@ async fn handle_pir_query_for_key(stream: &mut TcpStream, pir_client: &mut Clien
             println!("✅ Completing query took total time of {:?}", query_begins_at.elapsed());
         }
         Err(e) => {
-            eprintln!("❌ Failed to prepare query: {}", e);
+            eprintln!("❌ Failed to prepare query: '{}'", e);
         }
     }
 }
 
 #[tokio::main]
 async fn main() {
-    let mut stream = TcpStream::connect("127.0.0.1:7878").await.expect("❌ Unable to connect to server");
+    let mut stream = TcpStream::connect("127.0.0.1:7878").await.unwrap_or_else(|e| {
+        eprintln!("❌ Unable to connect to server: '{}'", e);
+        std::process::exit(1);
+    });
     println!("🎉 Connected to PIR server at 127.0.0.1:7878");
 
     request_setup_parameters(&mut stream).await;
@@ -138,7 +149,7 @@ async fn main() {
                 handle_pir_query_for_key(&mut stream, &mut pir_client, trimmed).await;
             }
             Err(e) => {
-                eprintln!("❌ Failed to read from stdin: {}", e);
+                eprintln!("❌ Failed to read from stdin: '{}'", e);
                 break;
             }
         }
